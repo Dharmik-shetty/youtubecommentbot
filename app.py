@@ -465,8 +465,20 @@ def _job_worker(params: dict):
             all_videos.extend(videos)
             _log(f"Keyword '{keyword}': {len(videos)} videos found")
 
+        # Deduplicate videos by video_id (keep first occurrence)
+        seen_ids = set()
+        unique_videos = []
+        for v in all_videos:
+            if v["video_id"] not in seen_ids:
+                seen_ids.add(v["video_id"])
+                unique_videos.append(v)
+        dupes_removed = len(all_videos) - len(unique_videos)
+        if dupes_removed:
+            _log(f"Removed {dupes_removed} duplicate video(s) from queue")
+        all_videos = unique_videos
+
         total = len(all_videos)
-        _log(f"\nTotal videos found across all keywords: {total}")
+        _log(f"\nTotal unique videos to process: {total}")
 
         if total == 0:
             _log("No videos found. Job complete.")
