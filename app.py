@@ -657,6 +657,18 @@ def health():
     return jsonify({"status": "ok", "time": datetime.now(timezone.utc).isoformat()})
 
 
+@app.route("/api/ping", methods=["GET"])
+def ping():
+    """Lightweight wake-up endpoint for cron jobs (e.g. cron-job.org).
+    Returns minimal server info without triggering any side effects."""
+    return jsonify({
+        "pong": True,
+        "service": "youtube-api-comment-server",
+        "uptime": time.monotonic(),
+        "time": datetime.now(timezone.utc).isoformat(),
+    })
+
+
 @app.route("/api/check-auth", methods=["GET"])
 def check_auth():
     """Check if OAuth token is valid / refreshable."""
