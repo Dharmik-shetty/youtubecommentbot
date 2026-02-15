@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube API Comment Bot – Dashboard</title>
+    <style>
+        /* ── Reset & Base ─────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:        #0e0e10;
+            --surface:   #18181b;
+            --surface2:  #1f1f23;
+            --border:    #2d2d33;
+            --text:      #e4e4e7;
+            --text-dim:  #8b8b94;
+            --accent:    #ff0000;
+            --green:     #22c55e;
+            --red:       #ef4444;
+            --yellow:    #facc15;
+            --blue:      #3b82f6;
+            --purple:    #a855f7;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 0;
+        }
+
+        /* ── Header ───────────────────────────────────────────── */
+        .header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 18px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .header-logo {
+            width: 32px;
+            height: 32px;
+        }
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+        }
+        .header h1 span { color: var(--accent); }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 5px 14px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-pill.online  { background: rgba(34,197,94,.12); color: var(--green); }
+        .status-pill.offline { background: rgba(239,68,68,.12); color: var(--red); }
+        .status-pill.working { background: rgba(59,130,246,.12); color: var(--blue); }
+        .status-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        .status-pill.online  .status-dot { background: var(--green); }
+        .status-pill.offline .status-dot { background: var(--red); animation: none; }
+        .status-pill.working .status-dot { background: var(--blue); }
+
+        .auth-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 5px 14px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+        }
+        .auth-pill.valid   { background: rgba(34,197,94,.12); color: var(--green); }
+        .auth-pill.invalid { background: rgba(239,68,68,.12); color: var(--red); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: .4; }
+        }
+
+        /* ── Container ────────────────────────────────────────── */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 28px 24px 60px;
+        }
+
+        /* ── Stat Cards ───────────────────────────────────────── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            transition: border-color .2s;
+        }
+        .stat-card:hover { border-color: var(--accent); }
+        .stat-label {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-dim);
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            line-height: 1;
+        }
+        .stat-value.green  { color: var(--green); }
+        .stat-value.red    { color: var(--red); }
+        .stat-value.yellow { color: var(--yellow); }
+        .stat-value.blue   { color: var(--blue); }
+        .stat-value.purple { color: var(--purple); }
+
+        /* ── Section ──────────────────────────────────────────── */
+        .section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .section-header {
+            padding: 16px 22px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+        }
+        .section-header h2 {
+            font-size: 15px;
+            font-weight: 600;
+        }
+        .section-header .badge {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 10px;
+            background: rgba(255,0,0,.12);
+            color: var(--accent);
+        }
+
+        /* ── Currently Processing Banner ──────────────────────── */
+        .now-processing {
+            padding: 14px 22px;
+            background: var(--surface2);
+            border-bottom: 1px solid var(--border);
+            display: none;
+        }
+        .now-processing.active { display: flex; align-items: center; gap: 12px; }
+        .now-processing .spinner {
+            width: 18px; height: 18px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .now-processing .np-text {
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+        .now-processing .np-text strong {
+            color: var(--text);
+        }
+
+        /* ── Table ────────────────────────────────────────────── */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        thead th {
+            text-align: left;
+            padding: 10px 18px;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-dim);
+            background: var(--surface2);
+        }
+        tbody td {
+            padding: 10px 18px;
+            border-top: 1px solid var(--border);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 350px;
+        }
+        tbody tr:hover { background: var(--surface2); }
+
+        .tag {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 6px;
+        }
+        .tag.success { background: rgba(34,197,94,.12); color: var(--green); }
+        .tag.fail    { background: rgba(239,68,68,.12); color: var(--red); }
+
+        /* ── Log Console ──────────────────────────────────────── */
+        .log-console {
+            background: #0d0d0d;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            max-height: 500px;
+            overflow-y: auto;
+            font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.7;
+        }
+        .log-console::-webkit-scrollbar { width: 6px; }
+        .log-console::-webkit-scrollbar-track { background: transparent; }
+        .log-console::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+        .log-line { display: flex; gap: 10px; }
+        .log-time { color: #555; white-space: nowrap; min-width: 80px; }
+        .log-msg { word-break: break-word; white-space: pre-wrap; }
+        .log-msg.info    { color: #d4d4d4; }
+        .log-msg.error   { color: #ff5555; }
+        .log-msg.warning { color: #facc15; }
+        .log-msg.success { color: #22c55e; }
+        .log-msg.header  { color: #ffd700; font-weight: 600; }
+
+        /* ── Toolbar ──────────────────────────────────────────── */
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 8px 18px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn:hover { border-color: var(--accent); background: var(--surface2); }
+        .btn.danger { border-color: var(--red); color: var(--red); }
+        .btn.danger:hover { background: rgba(239,68,68,.1); }
+
+        .uptime {
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        /* ── Empty state ──────────────────────────────────────── */
+        .empty-state {
+            padding: 32px;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 13px;
+        }
+
+        /* ── Two Column Layout ────────────────────────────────── */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 900px) {
+            .two-col { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────── -->
+<div class="header">
+    <div class="header-left">
+        <svg class="header-logo" viewBox="0 0 24 24" fill="#FF0000"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+        <h1>YouTube <span>API Bot</span> – Dashboard</h1>
+    </div>
+    <div class="header-right">
+        <span id="authPill" class="auth-pill invalid">
+            <span class="status-dot"></span> Auth: Unknown
+        </span>
+        <span id="statusPill" class="status-pill offline">
+            <span class="status-dot"></span> Idle
+        </span>
+    </div>
+</div>
+
+<!-- ── Container ───────────────────────────────────────────── -->
+<div class="container">
+
+    <!-- Stat Cards -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span class="stat-label">Videos Found</span>
+            <span class="stat-value blue" id="statVideos">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">AI Comments Generated</span>
+            <span class="stat-value purple" id="statAiGenerated">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">AI Failures</span>
+            <span class="stat-value yellow" id="statAiFailed">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Comments Posted</span>
+            <span class="stat-value green" id="statPosted">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Post Failures</span>
+            <span class="stat-value red" id="statPostFailed">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Total API Calls</span>
+            <span class="stat-value" style="color:var(--text)" id="statApiCalls">0</span>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <button class="btn" onclick="refreshStatus()">↻ Refresh</button>
+        <button class="btn danger" onclick="stopJob()">■ Stop Job</button>
+        <button class="btn danger" onclick="clearLogs()">✕ Clear Logs</button>
+        <span class="uptime" id="uptimeDisplay">Uptime: —</span>
+    </div>
+
+    <div class="two-col">
+        <!-- Comment History -->
+        <div class="section">
+            <div class="section-header">
+                <h2>Comment History</h2>
+                <span class="badge" id="historyCount">0</span>
+            </div>
+            <div id="nowProcessing" class="now-processing">
+                <div class="spinner"></div>
+                <div class="np-text">
+                    <strong id="npPhase">—</strong> · <span id="npDetail">—</span>
+                </div>
+            </div>
+            <div id="historyTable">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Video</th>
+                            <th>Channel</th>
+                            <th>Keyword</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyBody">
+                    </tbody>
+                </table>
+                <div class="empty-state" id="historyEmpty">No comments posted yet</div>
+            </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="section">
+            <div class="section-header">
+                <h2>Server Logs</h2>
+                <span class="badge" id="logCount">0</span>
+            </div>
+            <div class="log-console" id="logConsole">
+                <div class="empty-state" id="logEmpty">No logs yet</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const BASE = window.location.origin;
+    let autoRefreshId = null;
+
+    async function refreshStatus() {
+        try {
+            const res = await fetch(`${BASE}/api/dashboard-status`);
+            if (!res.ok) throw new Error(res.statusText);
+            const d = await res.json();
+
+            // Stats
+            document.getElementById('statVideos').textContent = d.stats.total_videos_found;
+            document.getElementById('statAiGenerated').textContent = d.stats.total_ai_generated;
+            document.getElementById('statAiFailed').textContent = d.stats.total_ai_failed;
+            document.getElementById('statPosted').textContent = d.stats.total_comments_posted;
+            document.getElementById('statPostFailed').textContent = d.stats.total_comments_failed;
+            document.getElementById('statApiCalls').textContent = d.stats.total_api_calls;
+
+            // Uptime
+            document.getElementById('uptimeDisplay').textContent = `Uptime: ${d.uptime}`;
+
+            // Auth pill
+            const authPill = document.getElementById('authPill');
+            if (d.auth_valid) {
+                authPill.className = 'auth-pill valid';
+                authPill.innerHTML = '<span class="status-dot" style="background:var(--green)"></span> Auth: Valid';
+            } else {
+                authPill.className = 'auth-pill invalid';
+                authPill.innerHTML = '<span class="status-dot" style="background:var(--red)"></span> Auth: Expired';
+            }
+
+            // Status pill
+            const statusPill = document.getElementById('statusPill');
+            if (d.job_running) {
+                statusPill.className = 'status-pill working';
+                statusPill.innerHTML = '<span class="status-dot"></span> Running';
+            } else {
+                statusPill.className = 'status-pill online';
+                statusPill.innerHTML = '<span class="status-dot"></span> Idle';
+            }
+
+            // Currently processing
+            const np = document.getElementById('nowProcessing');
+            if (d.currently_processing) {
+                np.classList.add('active');
+                const cp = d.currently_processing;
+                const phase = cp.phase === 'ai_generation' ? '🤖 AI Generation' : '📤 Posting';
+                document.getElementById('npPhase').textContent = `${phase} [${cp.index}/${cp.total}]`;
+                document.getElementById('npDetail').textContent = cp.video || '—';
+            } else {
+                np.classList.remove('active');
+            }
+
+            // History
+            const historyBody = document.getElementById('historyBody');
+            const historyEmpty = document.getElementById('historyEmpty');
+            const history = d.recent_history || [];
+            document.getElementById('historyCount').textContent = history.length;
+
+            if (history.length === 0) {
+                historyEmpty.style.display = 'block';
+                historyBody.innerHTML = '';
+            } else {
+                historyEmpty.style.display = 'none';
+                historyBody.innerHTML = history.slice().reverse().map(h => {
+                    const time = new Date(h.posted_at).toLocaleTimeString();
+                    const tag = h.success
+                        ? '<span class="tag success">Posted</span>'
+                        : '<span class="tag fail">Failed</span>';
+                    return `<tr>
+                        <td>${time}</td>
+                        <td title="${esc(h.title)}">${esc(h.title)}</td>
+                        <td>${esc(h.channel || '')}</td>
+                        <td>${esc(h.keyword || '')}</td>
+                        <td>${tag}</td>
+                    </tr>`;
+                }).join('');
+            }
+
+            // Logs
+            const logConsole = document.getElementById('logConsole');
+            const logEmpty = document.getElementById('logEmpty');
+            const logs = d.recent_logs || [];
+            document.getElementById('logCount').textContent = logs.length;
+
+            if (logs.length === 0) {
+                logEmpty.style.display = 'block';
+                logConsole.innerHTML = '<div class="empty-state" id="logEmpty">No logs yet</div>';
+            } else {
+                logEmpty.style.display = 'none';
+                logConsole.innerHTML = logs.map(l => {
+                    const time = new Date(l.timestamp).toLocaleTimeString();
+                    let cls = 'info';
+                    const msg = l.message || '';
+                    if (l.level === 'error') cls = 'error';
+                    else if (l.level === 'warning') cls = 'warning';
+                    else if (msg.includes('[OK]') || msg.includes('successfully')) cls = 'success';
+                    else if (msg.includes('===') || msg.includes('---') || msg.includes('PHASE') || msg.includes('JOB')) cls = 'header';
+                    return `<div class="log-line"><span class="log-time">${time}</span><span class="log-msg ${cls}">${esc(msg)}</span></div>`;
+                }).join('');
+                logConsole.scrollTop = logConsole.scrollHeight;
+            }
+
+        } catch (e) {
+            console.error('Status fetch error:', e);
+            const statusPill = document.getElementById('statusPill');
+            statusPill.className = 'status-pill offline';
+            statusPill.innerHTML = '<span class="status-dot"></span> Offline';
+        }
+    }
+
+    async function stopJob() {
+        try {
+            await fetch(`${BASE}/api/stop-job`, { method: 'POST' });
+            refreshStatus();
+        } catch (e) {
+            console.error('Stop error:', e);
+        }
+    }
+
+    async function clearLogs() {
+        try {
+            await fetch(`${BASE}/api/clear-logs`, { method: 'POST' });
+            refreshStatus();
+        } catch (e) {
+            console.error('Clear logs error:', e);
+        }
+    }
+
+    function esc(s) {
+        if (!s) return '';
+        const d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    // Auto-refresh every 3 seconds
+    refreshStatus();
+    autoRefreshId = setInterval(refreshStatus, 3000);
+</script>
+
+</body>
+</html>
