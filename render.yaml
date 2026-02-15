@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: youtube-api-comment-server
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --worker-class gthread
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+    rootDir: youtube_api/server
+    plan: free
+    healthCheckPath: /api/health
