@@ -372,7 +372,12 @@
         <div class="section">
             <div class="section-header">
                 <h2>Comment History</h2>
-                <span class="badge" id="historyCount">0</span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <button class="btn" onclick="downloadHistory()" title="Download history as JSON">⬇ Download</button>
+                    <button class="btn" onclick="document.getElementById('uploadHistoryInput').click()" title="Upload history JSON">⬆ Upload</button>
+                    <input type="file" id="uploadHistoryInput" accept=".json" style="display:none" onchange="uploadHistory(this)">
+                    <span class="badge" id="historyCount">0</span>
+                </div>
             </div>
             <div id="nowProcessing" class="now-processing">
                 <div class="spinner"></div>
@@ -545,6 +550,30 @@
         const d = document.createElement('div');
         d.textContent = s;
         return d.innerHTML;
+    }
+
+    function downloadHistory() {
+        window.open(`${BASE}/api/download-history`, '_blank');
+    }
+
+    async function uploadHistory(input) {
+        const file = input.files[0];
+        if (!file) return;
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch(`${BASE}/api/upload-history`, { method: 'POST', body: formData });
+            const d = await res.json();
+            if (res.ok) {
+                alert(`Upload successful: ${d.message} (total: ${d.total})`);
+                refreshStatus();
+            } else {
+                alert(`Upload failed: ${d.error}`);
+            }
+        } catch (e) {
+            alert(`Upload error: ${e.message}`);
+        }
+        input.value = '';  // reset so same file can be re-uploaded
     }
 
     // Auto-refresh every 3 seconds
