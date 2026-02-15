@@ -455,33 +455,68 @@ def _job_worker(params: dict):
         _log("  PHASE 1: SEARCHING VIDEOS")
         _log("=" * 60)
 
+        # Build set of video IDs already in comment history (to skip them)
+        with history_lock:
+            history_video_ids = {h.get("video_id", "") for h in comment_history}
+        _log(f"Comment history contains {len(history_video_ids)} unique video(s) – these will be skipped")
+
         all_videos = []
+        seen_ids = set()  # for dedup across keywords
+
         for keyword in search_keywords:
             if job_stop_event.is_set():
                 _log("Job stopped by user during search phase")
                 return
 
-            videos = search_videos(youtube, keyword, max_videos, sort_filter)
-            all_videos.extend(videos)
-            _log(f"Keyword '{keyword}': {len(videos)} videos found")
+            needed = max_videos  # how many unique, non-history videos we still need for this keyword
+            fetched_so_far = 0
+            page_token = None
+            keyword_videos = []
 
-        # Deduplicate videos by video_id (keep first occurrence)
-        seen_ids = set()
-        unique_videos = []
-        for v in all_videos:
-            if v["video_id"] not in seen_ids:
-                seen_ids.add(v["video_id"])
-                unique_videos.append(v)
-        dupes_removed = len(all_videos) - len(unique_videos)
-        if dupes_removed:
-            _log(f"Removed {dupes_removed} duplicate video(s) from queue")
-        all_videos = unique_videos
+            while needed > 0:
+                if job_stop_event.is_set():
+                    break
+
+                # Fetch a batch (ask for more to compensate for expected skips)
+                fetch_count = min(needed + 10, 50)  # slight over-fetch
+                videos = search_videos(youtube, keyword, fetch_count, sort_filter)
+
+                if not videos:
+                    break  # no more results for this keyword
+
+                new_in_batch = 0
+                for v in videos:
+                    vid = v["video_id"]
+                    if vid in seen_ids:
+                        continue  # duplicate across keywords
+                    if vid in history_video_ids:
+                        _log(f"  [SKIP] Already in history: {v['title'][:60]}")
+                        continue
+                    seen_ids.add(vid)
+                    keyword_videos.append(v)
+                    new_in_batch += 1
+                    if len(keyword_videos) >= max_videos:
+                        break
+
+                needed = max_videos - len(keyword_videos)
+                fetched_so_far += len(videos)
+
+                # Stop if the API returned fewer than asked (no more pages)
+                if len(videos) < fetch_count:
+                    break
+                # Safety cap to avoid infinite loops
+                if fetched_so_far >= max_videos * 5:
+                    _log(f"  Reached safety fetch cap for keyword '{keyword}'")
+                    break
+
+            all_videos.extend(keyword_videos)
+            _log(f"Keyword '{keyword}': {len(keyword_videos)} unique videos queued (after dedup & history skip)")
 
         total = len(all_videos)
         _log(f"\nTotal unique videos to process: {total}")
 
         if total == 0:
-            _log("No videos found. Job complete.")
+            _log("No videos found (all may be duplicates or already in history). Job complete.")
             return
 
         # ========== PHASE 2: AI COMMENT GENERATION ==========
@@ -842,6 +877,63 @@ def clear_logs():
     with log_buffer_lock:
         log_buffer.clear()
     return jsonify({"message": "Logs cleared"})
+
+
+@app.route("/api/download-history", methods=["GET"])
+def download_history():
+    """Download the full comment history as a JSON file."""
+    with history_lock:
+        data = list(comment_history)
+    response = app.response_class(
+        response=json.dumps(data, indent=2),
+        mimetype="application/json",
+        headers={"Content-Disposition": "attachment; filename=comment_history.json"},
+    )
+    return response
+
+
+@app.route("/api/upload-history", methods=["POST"])
+def upload_history():
+    """Upload / merge a previously downloaded comment history JSON file.
+
+    Accepts either a multipart file upload (field name 'file') or a raw JSON body.
+    Duplicate entries (same video_id + posted_at) are skipped.
+    """
+    try:
+        # Accept file upload or raw JSON
+        if request.content_type and "multipart" in request.content_type:
+            f = request.files.get("file")
+            if not f:
+                return jsonify({"error": "No file uploaded"}), 400
+            data = json.loads(f.read().decode("utf-8"))
+        else:
+            data = request.get_json(force=True)
+
+        if not isinstance(data, list):
+            return jsonify({"error": "Expected a JSON array"}), 400
+
+        with history_lock:
+            existing_keys = {
+                (h.get("video_id", ""), h.get("posted_at", ""))
+                for h in comment_history
+            }
+            added = 0
+            for entry in data:
+                key = (entry.get("video_id", ""), entry.get("posted_at", ""))
+                if key not in existing_keys:
+                    comment_history.append(entry)
+                    existing_keys.add(key)
+                    added += 1
+            # Trim to MAX_HISTORY
+            while len(comment_history) > MAX_HISTORY:
+                comment_history.pop(0)
+
+        _log(f"Uploaded history: {added} new entries added ({len(data)} total in file)")
+        return jsonify({"message": f"{added} entries added", "total": len(comment_history)})
+
+    except Exception as e:
+        _log(f"Upload history error: {e}", "error")
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route("/api/keepalive", methods=["GET"])
