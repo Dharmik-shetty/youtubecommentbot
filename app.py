@@ -179,6 +179,7 @@ def _get_youtube_service():
 
 def _is_auth_valid() -> bool:
     """Check if we have valid (or refreshable) OAuth credentials."""
+    global oauth_credentials
     with oauth_lock:
         creds = oauth_credentials
     if creds is None:
@@ -189,7 +190,6 @@ def _is_auth_valid() -> bool:
         try:
             creds.refresh(GoogleAuthRequest())
             with oauth_lock:
-                global oauth_credentials
                 oauth_credentials = creds
             return True
         except Exception:
